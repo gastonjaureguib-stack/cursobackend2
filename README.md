@@ -21,7 +21,7 @@ Esta primera pre-entrega corresponde a la base arquitectónica del proyecto de *
 ## 1. Clonar el repositorio
 
 ```bash
-git clone URL_DEL_REPOSITORIO
+git clone  https://github.com/gastonjaureguib-stack/cursobackend2.git
 ```
 
 ## 2. Ingresar al proyecto
