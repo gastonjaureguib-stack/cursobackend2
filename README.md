@@ -1,6 +1,6 @@
 # Plataforma de Eventos y Reservas para Club Cannábico
 
-API backend desarrollada con **Node.js**, **Express** y **Mongoose**, orientada a una plataforma de eventos e inscripciones para un club cannábico.
+API backend desarrollada con **Node.js**, **Express** y **Mongoose**, orientada a una plataforma de eventos e inscripciones"
 
 Esta primera pre-entrega corresponde a la base arquitectónica del proyecto de **Backend II**, preparada para crecer en próximas etapas con autenticación, roles, inscripciones, cupos y otras funcionalidades.
 
@@ -27,7 +27,7 @@ git clone  https://github.com/gastonjaureguib-stack/cursobackend2.git
 ## 2. Ingresar al proyecto
 
 ```bash
-cd cursoback2
+cd cursobackend2
 ```
 
 ## 3. Instalar dependencias
