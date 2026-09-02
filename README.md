@@ -1,22 +1,24 @@
 # Plataforma de Eventos y Reservas para Club Cannábico
 
-API backend desarrollada con **Node.js**, **Express**, **MongoDB**, **Mongoose** y **bcrypt**, orientada a una plataforma de eventos e inscripciones.
+API backend desarrollada con **Node.js**, **Express**, **MongoDB**, **Mongoose**, **bcrypt**, **jsonwebtoken** y **cookie-parser**, orientada a una plataforma de eventos e inscripciones.
 
-Esta segunda pre-entrega corresponde al desarrollo del primer flujo seguro de usuarios del proyecto de **Backend II**, incorporando conexión a MongoDB, arquitectura por capas y registro seguro de usuarios.
+Esta tercera pre-entrega de **Backend II** incorpora autenticación mediante login, JWT, cookies y rutas protegidas sobre la arquitectura desarrollada en las etapas anteriores.
 
-El proyecto queda preparado para continuar en próximas etapas con login, JWT, cookies, Passport, roles, autorización, gestión de eventos e inscripciones.
+Actualmente la aplicación permite registrar usuarios, iniciar sesión, generar un JWT, almacenar la sesión en una cookie HttpOnly, consultar el usuario autenticado y cerrar sesión.
 
 ---
 
 # Tecnologías utilizadas
 
-* Node.js
-* Express
-* MongoDB
-* Mongoose
-* bcrypt
-* dotenv
-* JavaScript con módulos ESM
+- Node.js
+- Express
+- MongoDB
+- Mongoose
+- bcrypt
+- jsonwebtoken
+- cookie-parser
+- dotenv
+- JavaScript con módulos ESM
 
 ---
 
@@ -46,20 +48,21 @@ npm install
 
 Crear un archivo `.env` en la raíz del proyecto tomando como referencia `.env.example`.
 
-Ejemplo:
-
 ```env
 PORT=8080
 NODE_ENV=development
 MONGO_URL=mongodb://localhost:27017/tu_base_de_datos
 JWT_SECRET=tu_clave_secreta
+JWT_EXPIRES_IN=1h
 ```
 
 `MONGO_URL` se utiliza para establecer la conexión con MongoDB mediante Mongoose.
 
-`JWT_SECRET` queda configurado para ser utilizado en las próximas etapas del proyecto, cuando se incorpore autenticación mediante JWT.
+`JWT_SECRET` se utiliza para firmar y verificar los tokens JWT.
 
-El archivo `.env` contiene información local o sensible y no debe subirse al repositorio.
+`JWT_EXPIRES_IN` permite configurar el tiempo de expiración del token.
+
+El archivo `.env` contiene información sensible y no debe subirse al repositorio.
 
 ---
 
@@ -108,6 +111,8 @@ src/
 │   └── users.dao.js
 │
 ├── middlewares/
+│   ├── auth.middleware.js
+│   └── error.middleware.js
 │
 ├── models/
 │   ├── User.js
@@ -124,10 +129,11 @@ src/
 │   └── sessions.service.js
 │
 └── utils/
-    └── hash.js
+    ├── hash.js
+    └── jwt.js
 ```
 
-El flujo utilizado para el registro de usuarios es:
+Flujo principal:
 
 ```text
 Route
@@ -145,27 +151,7 @@ Model
 MongoDB
 ```
 
-Esta separación permite mantener desacoplada la lógica HTTP, la lógica de negocio y el acceso a datos.
-
----
-
-# Conexión a MongoDB
-
-La aplicación utiliza **Mongoose** para conectarse a MongoDB.
-
-La conexión se encuentra configurada en:
-
-```text
-src/config/db.js
-```
-
-La URL de conexión se obtiene desde la variable de entorno:
-
-```text
-MONGO_URL
-```
-
-Si no es posible establecer la conexión con la base de datos, el servidor no continúa su ejecución.
+La autenticación de rutas protegidas se realiza mediante un middleware independiente.
 
 ---
 
@@ -177,39 +163,33 @@ Si no es posible establecer la conexión con la base de datos, el servidor no co
 POST /api/sessions/register
 ```
 
-Permite registrar un nuevo usuario de forma segura.
+Permite registrar un nuevo usuario.
 
 ### Campos requeridos
 
-* `first_name`
-* `last_name`
-* `email`
-* `password`
+- `first_name`
+- `last_name`
+- `email`
+- `password`
 
-El campo `role` **no se acepta desde el registro público**. Todos los usuarios registrados mediante este endpoint reciben automáticamente el rol `user`.
+El campo `role` no se acepta desde el registro público.
 
-Los roles admitidos por el modelo son:
+Todos los usuarios registrados mediante este endpoint reciben automáticamente:
 
-* `user`
-* `organizer`
-* `admin`
-
----
-
-# Ejemplo de registro
+```text
+role: user
+```
 
 ### Request
 
 ```json
 {
   "first_name": "Ana",
-  "last_name": "Pérez",
-  "email": "Ana@Mail.com ",
+  "last_name": "Perez",
+  "email": "Ana@Test.com ",
   "password": "Secreta123"
 }
 ```
-
-El email se normaliza mediante `trim` y `lowercase` antes de realizar la búsqueda y persistencia.
 
 ### Response — 201 Created
 
@@ -219,8 +199,8 @@ El email se normaliza mediante `trim` y `lowercase` antes de realizar la búsque
   "payload": {
     "id": "665f2a...",
     "first_name": "Ana",
-    "last_name": "Pérez",
-    "email": "ana@mail.com",
+    "last_name": "Perez",
+    "email": "ana@test.com",
     "role": "user"
   }
 }
@@ -234,16 +214,14 @@ La contraseña nunca se incluye en la respuesta.
 
 El endpoint verifica:
 
-* presencia de `first_name`, `last_name`, `email` y `password`;
-* formato válido de email;
-* contraseña de al menos 8 caracteres;
-* normalización del email;
-* inexistencia previa del email en la base de datos;
-* asignación segura del rol `user`.
+- presencia de los campos obligatorios;
+- formato válido del email;
+- contraseña de al menos 8 caracteres;
+- normalización del email;
+- inexistencia previa del email;
+- asignación segura del rol `user`.
 
-### Campos faltantes
-
-Response `400 Bad Request`:
+### Campos faltantes — 400
 
 ```json
 {
@@ -252,9 +230,7 @@ Response `400 Bad Request`:
 }
 ```
 
-### Email inválido
-
-Response `400 Bad Request`:
+### Email inválido — 400
 
 ```json
 {
@@ -263,9 +239,7 @@ Response `400 Bad Request`:
 }
 ```
 
-### Contraseña demasiado corta
-
-Response `400 Bad Request`:
+### Contraseña demasiado corta — 400
 
 ```json
 {
@@ -274,9 +248,7 @@ Response `400 Bad Request`:
 }
 ```
 
-### Email ya registrado
-
-Response `409 Conflict`:
+### Email ya registrado — 409
 
 ```json
 {
@@ -287,110 +259,229 @@ Response `409 Conflict`:
 
 ---
 
+# Login
+
+## Endpoint
+
+```text
+POST /api/sessions/login
+```
+
+Permite iniciar sesión utilizando email y contraseña.
+
+### Request
+
+```json
+{
+  "email": "ana@test.com",
+  "password": "Secreta123"
+}
+```
+
+Durante el login:
+
+1. se normaliza el email;
+2. se busca el usuario en MongoDB;
+3. se compara la contraseña mediante bcrypt;
+4. se genera un JWT;
+5. el JWT se almacena en una cookie llamada `currentUser`.
+
+### Response — 200 OK
+
+```json
+{
+  "status": "success",
+  "message": "Login correcto"
+}
+```
+
+---
+
+# Credenciales inválidas
+
+Por seguridad, el sistema no diferencia entre un email inexistente y una contraseña incorrecta.
+
+Ambos casos devuelven:
+
+```json
+{
+  "status": "error",
+  "message": "Credenciales inválidas"
+}
+```
+
+Status:
+
+```text
+401 Unauthorized
+```
+
+---
+
+# JWT
+
+La lógica relacionada con JWT se encuentra en:
+
+```text
+src/utils/jwt.js
+```
+
+El token contiene:
+
+```json
+{
+  "id": "id_del_usuario",
+  "email": "usuario@test.com",
+  "role": "user"
+}
+```
+
+La contraseña nunca se incluye en el token.
+
+El JWT se firma utilizando la variable:
+
+```text
+JWT_SECRET
+```
+
+y su expiración se configura mediante:
+
+```text
+JWT_EXPIRES_IN
+```
+
+---
+
+# Cookie de autenticación
+
+Luego de un login exitoso, el JWT se guarda en la cookie:
+
+```text
+currentUser
+```
+
+Configuración utilizada:
+
+```text
+httpOnly: true
+sameSite: lax
+maxAge: 3600000
+secure: true solamente en producción
+```
+
+La cookie es leída en Express utilizando `cookie-parser`.
+
+---
+
+# Usuario actual
+
+## Endpoint
+
+```text
+GET /api/sessions/current
+```
+
+Ruta protegida mediante:
+
+```text
+src/middlewares/auth.middleware.js
+```
+
+El middleware obtiene la cookie, verifica el JWT y guarda el payload en:
+
+```text
+req.user
+```
+
+### Response — 200 OK
+
+```json
+{
+  "status": "success",
+  "payload": {
+    "id": "665f2a...",
+    "email": "ana@test.com",
+    "role": "user"
+  }
+}
+```
+
+La contraseña nunca se devuelve.
+
+---
+
+# Usuario no autenticado
+
+Si la petición no contiene una cookie válida, el token fue manipulado o expiró:
+
+```json
+{
+  "status": "error",
+  "message": "No autenticado"
+}
+```
+
+Status:
+
+```text
+401 Unauthorized
+```
+
+---
+
+# Logout
+
+## Endpoint
+
+```text
+POST /api/sessions/logout
+```
+
+El endpoint elimina la cookie `currentUser`.
+
+### Response — 200 OK
+
+```json
+{
+  "status": "success",
+  "message": "Sesión cerrada"
+}
+```
+
+Después del logout, un nuevo acceso a `/api/sessions/current` devuelve `401 Unauthorized`.
+
+---
+
 # Seguridad de contraseñas
 
 Las contraseñas no se almacenan en texto plano.
 
-Antes de guardar un usuario, la contraseña es procesada utilizando **bcrypt**.
-
-La lógica de hashing se encuentra encapsulada en el helper reutilizable:
+La lógica se encuentra en:
 
 ```text
 src/utils/hash.js
 ```
 
-Este helper contiene funciones para generar hashes y comparar contraseñas, dejando preparada la aplicación para implementar el login en próximas entregas.
+Se utiliza bcrypt para:
 
-La contraseña, tanto en texto plano como hasheada, nunca se devuelve en la respuesta del endpoint de registro.
+- generar el hash antes de almacenar la contraseña;
+- comparar la contraseña recibida durante el login con el hash almacenado.
 
----
-
-# Modelo User
-
-El modelo `User` contiene:
-
-* `first_name`
-* `last_name`
-* `email`
-* `password`
-* `role`
-
-El campo `role` admite:
-
-```text
-user
-organizer
-admin
-```
-
-y su valor por defecto es:
-
-```text
-user
-```
-
-También se utilizan timestamps de Mongoose para registrar las fechas de creación y actualización.
+Las contraseñas no se incluyen en las respuestas de la API ni en el JWT.
 
 ---
 
-# Events
+# Endpoints disponibles
 
-Representará los eventos, actividades, talleres o reuniones disponibles dentro de la plataforma.
-
-Ruta disponible:
-
-```text
-GET /api/events
-```
-
-Respuesta actual:
-
-```json
-{
-  "status": "success",
-  "payload": []
-}
-```
-
-El CRUD completo de eventos será incorporado en próximas etapas.
-
----
-
-# Sessions
-
-Además del registro, se mantiene la ruta base:
-
-```text
-GET /api/sessions
-```
-
-Respuesta:
-
-```json
-{
-  "status": "success",
-  "message": "Sessions disponible"
-}
-```
-
----
-
-# Health Check
-
-Ruta utilizada para comprobar que el servidor se encuentra activo:
-
-```text
-GET /api/health
-```
-
-Respuesta:
-
-```json
-{
-  "status": "ok",
-  "message": "Servidor activo"
-}
-```
+| Método | Endpoint | Descripción |
+|---|---|---|
+| GET | `/api/health` | Comprueba que el servidor esté activo |
+| GET | `/api/events` | Devuelve los eventos disponibles |
+| GET | `/api/sessions` | Comprueba el módulo de sessions |
+| POST | `/api/sessions/register` | Registra un usuario |
+| POST | `/api/sessions/login` | Inicia sesión |
+| GET | `/api/sessions/current` | Devuelve el usuario autenticado |
+| POST | `/api/sessions/logout` | Cierra la sesión |
 
 ---
 
@@ -399,31 +490,54 @@ Respuesta:
 Antes de la entrega se verificaron los siguientes escenarios:
 
 1. Registro exitoso.
-2. Campos obligatorios faltantes.
-3. Email con formato inválido.
+2. Email normalizado.
+3. Registro sin devolver la contraseña.
 4. Email ya registrado.
-5. Contraseña almacenada con hash de bcrypt en MongoDB.
-6. Respuesta del endpoint sin el campo `password`.
-7. Intento de enviar `role: "admin"` desde el registro público, verificando que el usuario sea creado con `role: "user"`.
+5. Contraseña almacenada utilizando bcrypt.
+6. Intento de manipular el rol desde el registro.
+7. Login exitoso.
+8. Login con email inexistente.
+9. Login con contraseña incorrecta.
+10. Mismo mensaje para email o contraseña incorrectos.
+11. Generación del JWT.
+12. Creación de la cookie `currentUser`.
+13. Cookie configurada como HttpOnly.
+14. Acceso a `/current` con token válido.
+15. Acceso a `/current` sin cookie.
+16. Rechazo de token inválido o manipulado.
+17. Logout exitoso.
+18. Eliminación de la cookie.
+19. Acceso a `/current` luego del logout devuelve `401`.
 
 ---
 
-# Temática del proyecto
+# Flujo de autenticación
 
-El proyecto está orientado a una **plataforma de eventos e inscripciones para un club cannábico**.
-
-En esta segunda etapa se incorporó el primer flujo real y seguro de usuarios.
-
-En futuras entregas se podrán incorporar funcionalidades como:
-
-* login de usuarios;
-* JWT y cookies;
-* Passport;
-* roles y autorización;
-* gestión de eventos;
-* inscripciones;
-* control de cupos;
-* notificaciones.
+```text
+REGISTER
+   ↓
+MongoDB
+   ↓
+LOGIN
+   ↓
+bcrypt.compare
+   ↓
+JWT
+   ↓
+Cookie currentUser
+   ↓
+GET /current
+   ↓
+auth.middleware
+   ↓
+Usuario autenticado
+   ↓
+LOGOUT
+   ↓
+Cookie eliminada
+   ↓
+GET /current → 401
+```
 
 ---
 
@@ -436,15 +550,17 @@ node_modules/
 .env
 ```
 
-De esta manera, las dependencias instaladas y las variables sensibles no se incluyen en el repositorio público.
-
 Además:
 
-* las contraseñas se almacenan utilizando bcrypt;
-* el email se normaliza antes de guardarse;
-* se impiden registros duplicados por email;
-* el rol no puede ser manipulado desde el registro público;
-* la contraseña no se expone en las respuestas de la API.
+- las contraseñas se almacenan mediante bcrypt;
+- el email se normaliza;
+- el rol del registro público se fuerza a `user`;
+- las contraseñas no se exponen;
+- el JWT no contiene la contraseña;
+- `JWT_SECRET` se obtiene desde variables de entorno;
+- la autenticación utiliza una cookie HttpOnly;
+- el login no revela si un email se encuentra registrado;
+- las rutas protegidas verifican la validez del JWT.
 
 ---
 
@@ -459,8 +575,22 @@ Además:
 
 ---
 
+# Próximas funcionalidades
+
+El proyecto queda preparado para continuar incorporando:
+
+- autorización según roles;
+- Passport;
+- gestión completa de eventos;
+- inscripciones;
+- control de cupos;
+- permisos de organizadores y administradores;
+- notificaciones.
+
+---
+
 # Autor
 
 **Gastón Jaureguiberry**
 
-Proyecto desarrollado como **Pre-entrega 2 de Backend II en Coderhouse**.
+Proyecto desarrollado como **Pre-entrega 3 de Backend II en Coderhouse**.
