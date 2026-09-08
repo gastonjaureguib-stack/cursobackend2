@@ -5,6 +5,10 @@ export class UsersDAO {
         return await UserModel.findOne({ email });
     }
 
+    async findById(id) {
+        return await UserModel.findById(id);
+    }
+
     async create(userData) {
         return await UserModel.create(userData);
     }
