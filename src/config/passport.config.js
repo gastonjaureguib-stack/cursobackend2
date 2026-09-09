@@ -1,26 +1,15 @@
 import passport from 'passport';
+import { Strategy as LocalStrategy } from 'passport-local';
+import { Strategy as JwtStrategy } from 'passport-jwt';
 
-import {
-    Strategy as LocalStrategy
-} from 'passport-local';
-
-import {
-    Strategy as JwtStrategy
-} from 'passport-jwt';
-
-import {
-    usersRepository
-} from '../repositories/users.repository.js';
-
+import { usersRepository } from '../repositories/users.repository.js';
 import {
     createHash,
     isValidPassword
 } from '../utils/hash.js';
 
 
-// ========================================
-// EXTRAER JWT DESDE LA COOKIE
-// ========================================
+// Extraer JWT desde la cookie
 
 const cookieExtractor = (req) => {
     let token = null;
@@ -33,9 +22,7 @@ const cookieExtractor = (req) => {
 };
 
 
-// ========================================
-// ESTRATEGIA REGISTER
-// ========================================
+// Estrategia register
 
 passport.use(
     'register',
@@ -51,7 +38,6 @@ passport.use(
                     last_name
                 } = req.body;
 
-                // Validar campos obligatorios
                 if (
                     !first_name?.trim() ||
                     !last_name?.trim() ||
@@ -64,20 +50,16 @@ passport.use(
                     });
                 }
 
-                // Validar formato del email
                 const emailRegex =
                     /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-                if (
-                    !emailRegex.test(email.trim())
-                ) {
+                if (!emailRegex.test(email.trim())) {
                     return done(null, false, {
                         message:
                             'Formato de email inválido'
                     });
                 }
 
-                // Validar contraseña
                 if (password.length < 8) {
                     return done(null, false, {
                         message:
@@ -85,11 +67,9 @@ passport.use(
                     });
                 }
 
-                // Normalizar email
                 const normalizedEmail =
                     email.trim().toLowerCase();
 
-                // Comprobar si ya existe
                 const existingUser =
                     await usersRepository.findByEmail(
                         normalizedEmail
@@ -102,24 +82,19 @@ passport.use(
                     });
                 }
 
-                // Hashear contraseña
                 const hashedPassword =
                     await createHash(password);
 
-                // Crear usuario
                 const newUser =
                     await usersRepository.createUser({
-                        first_name:
-                            first_name.trim(),
-                        last_name:
-                            last_name.trim(),
+                        first_name: first_name.trim(),
+                        last_name: last_name.trim(),
                         email: normalizedEmail,
                         password: hashedPassword,
                         role: 'user'
                     });
 
                 return done(null, newUser);
-
             } catch (error) {
                 return done(error);
             }
@@ -128,9 +103,7 @@ passport.use(
 );
 
 
-// ========================================
-// ESTRATEGIA LOGIN
-// ========================================
+// Estrategia login
 
 passport.use(
     'login',
@@ -169,7 +142,6 @@ passport.use(
                 }
 
                 return done(null, user);
-
             } catch (error) {
                 return done(error);
             }
@@ -178,17 +150,14 @@ passport.use(
 );
 
 
-// ========================================
-// ESTRATEGIA CURRENT
-// ========================================
+// Estrategia current
 
 passport.use(
     'current',
     new JwtStrategy(
         {
             jwtFromRequest: cookieExtractor,
-            secretOrKey:
-                process.env.JWT_SECRET
+            secretOrKey: process.env.JWT_SECRET
         },
         async (jwtPayload, done) => {
             try {
@@ -204,7 +173,6 @@ passport.use(
                 }
 
                 return done(null, user);
-
             } catch (error) {
                 return done(error);
             }
