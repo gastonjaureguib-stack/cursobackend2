@@ -22,7 +22,7 @@ const cookieExtractor = (req) => {
 };
 
 
-// Estrategia register
+
 
 passport.use(
     'register',
@@ -103,7 +103,7 @@ passport.use(
 );
 
 
-// Estrategia login
+
 
 passport.use(
     'login',
@@ -150,7 +150,7 @@ passport.use(
 );
 
 
-// Estrategia current
+
 
 passport.use(
     'current',

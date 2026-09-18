@@ -9,12 +9,13 @@ import {
     logout
 } from '../controllers/sessions.controller.js';
 
+import { authenticate } from '../middlewares/auth.middleware.js';
+
 const router = Router();
 
 router.get('/', getSessionStatus);
 
 
-// Register
 
 router.post(
     '/register',
@@ -33,8 +34,7 @@ router.post(
                         'No se pudo registrar el usuario';
 
                     const statusCode =
-                        message ===
-                        'El email ya está registrado'
+                        message === 'El email ya está registrado'
                             ? 409
                             : 400;
 
@@ -55,7 +55,7 @@ router.post(
 );
 
 
-// Login
+
 
 router.post(
     '/login',
@@ -73,8 +73,7 @@ router.post(
                         .status(401)
                         .json({
                             status: 'error',
-                            message:
-                                'Credenciales inválidas'
+                            message: 'Credenciales inválidas'
                         });
                 }
 
@@ -87,38 +86,16 @@ router.post(
 );
 
 
-// Current
+
 
 router.get(
     '/current',
-    (req, res, next) => {
-        passport.authenticate(
-            'current',
-            { session: false },
-            (error, user) => {
-                if (error) {
-                    return next(error);
-                }
-
-                if (!user) {
-                    return res
-                        .status(401)
-                        .json({
-                            status: 'error',
-                            message: 'No autenticado'
-                        });
-                }
-
-                req.user = user;
-
-                return current(req, res);
-            }
-        )(req, res, next);
-    }
+    authenticate,
+    current
 );
 
 
-// Logout
+
 
 router.post('/logout', logout);
 

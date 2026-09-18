@@ -1,12 +1,19 @@
 # Plataforma de Eventos y Reservas para Club Cannábico
 
-API backend desarrollada con **Node.js**, **Express**, **MongoDB**, **Mongoose**, **Passport.js**, **bcrypt**, **jsonwebtoken** y **cookie-parser**, orientada a una plataforma de eventos e inscripciones.
+API backend desarrollada con **Node.js**, **Express**, **MongoDB**, **Mongoose**, **Passport.js**, **bcrypt**, **jsonwebtoken** y **cookie-parser**, orientada a una plataforma de eventos, actividades e inscripciones para un club cannábico.
 
-Esta cuarta pre-entrega de **Backend II** refactoriza el sistema de autenticación existente incorporando **Passport.js** para centralizar las estrategias de registro, login y usuario actual.
+Esta quinta pre-entrega de **Backend II** incorpora un sistema de **autorización basado en roles**, permitiendo proteger rutas y recursos según los permisos de cada usuario.
 
-El contrato externo de la API se mantiene respecto de la Pre-entrega anterior: se continúa utilizando JWT y una cookie HttpOnly llamada `currentUser`.
+El sistema diferencia entre autenticación y autorización:
 
-Passport se encarga de organizar la validación de usuarios mediante las estrategias `register`, `login` y `current`, mientras que el controller mantiene la responsabilidad de generar el JWT y configurar la cookie luego de un login exitoso.
+- **Autenticación:** determina quién es el usuario mediante JWT y una cookie HttpOnly.
+- **Autorización:** determina qué acciones puede realizar según su rol.
+
+Los roles disponibles son:
+
+- `user`
+- `organizer`
+- `admin`
 
 ---
 
@@ -97,7 +104,7 @@ Al iniciar la aplicación se cargan las variables de entorno, se establece la co
 
 # Arquitectura del proyecto
 
-El proyecto mantiene una estructura organizada por capas y centraliza la autenticación mediante Passport.
+El proyecto mantiene una arquitectura organizada por capas.
 
 ```text
 src/
@@ -111,51 +118,51 @@ src/
 │
 ├── controllers/
 │   ├── events.controller.js
-│   └── sessions.controller.js
+│   ├── sessions.controller.js
+│   └── users.controller.js
 │
 ├── dao/
+│   ├── events.dao.js
 │   └── users.dao.js
 │
 ├── middlewares/
+│   ├── auth.middleware.js
+│   ├── authorize.middleware.js
 │   └── error.middleware.js
 │
 ├── models/
-│   ├── User.js
-│   └── Event.js
+│   ├── Event.js
+│   └── User.js
 │
 ├── repositories/
+│   ├── events.repository.js
 │   └── users.repository.js
 │
 ├── routes/
 │   ├── events.router.js
-│   └── sessions.router.js
+│   ├── sessions.router.js
+│   └── users.router.js
 │
 └── utils/
     ├── hash.js
     └── jwt.js
 ```
 
-La configuración de las estrategias de autenticación se encuentra centralizada en:
+La autenticación mediante Passport se encuentra centralizada en:
 
 ```text
 src/config/passport.config.js
 ```
 
-Passport se inicializa en `app.js` mediante:
-
-```javascript
-app.use(passport.initialize());
-```
-
-La lógica de las estrategias no se encuentra dentro de `app.js`.
+La autenticación y autorización de rutas se implementan mediante middlewares reutilizables separados de los routers.
 
 ---
 
-# Passport.js
+# Autenticación con Passport.js
 
-Passport.js se utiliza como middleware de autenticación para organizar las distintas formas de validar usuarios.
+Passport.js se utiliza para organizar las distintas formas de validar usuarios.
 
-En esta entrega se implementaron tres estrategias:
+Se implementan tres estrategias:
 
 ```text
 register
@@ -167,7 +174,13 @@ Las estrategias `register` y `login` utilizan `passport-local`.
 
 La estrategia `current` utiliza `passport-jwt`.
 
-Passport no reemplaza a bcrypt, JWT ni las cookies.
+Las estrategias utilizan:
+
+```javascript
+session: false
+```
+
+porque el proyecto utiliza JWT y no sesiones tradicionales de Passport.
 
 Cada herramienta mantiene una responsabilidad diferente:
 
@@ -176,38 +189,9 @@ Cada herramienta mantiene una responsabilidad diferente:
 - **cookie-parser:** lectura de cookies desde Express.
 - **Passport:** organización y ejecución de las estrategias de autenticación.
 
-Las estrategias se utilizan con `session: false`, ya que el proyecto utiliza JWT y no sesiones tradicionales de Passport.
-
 ---
 
-# Estrategia register
-
-La estrategia:
-
-```text
-register
-```
-
-se encarga del registro de nuevos usuarios.
-
-Sus responsabilidades son:
-
-- validar campos obligatorios;
-- validar el formato del email;
-- validar una contraseña mínima de 8 caracteres;
-- normalizar el email;
-- verificar que el email no esté registrado;
-- generar el hash de la contraseña mediante bcrypt;
-- asignar el rol `user`;
-- crear el usuario.
-
-El rol no se toma desde el body de la petición. El backend asigna:
-
-```text
-role: user
-```
-
-Esto evita que un usuario pueda registrarse públicamente como administrador u organizador.
+# Registro de usuarios
 
 ## Endpoint
 
@@ -215,68 +199,377 @@ Esto evita que un usuario pueda registrarse públicamente como administrador u o
 POST /api/sessions/register
 ```
 
-## Request
+El registro público permite crear nuevos usuarios.
+
+El backend valida:
+
+- campos obligatorios;
+- formato del email;
+- contraseña mínima de 8 caracteres;
+- email no registrado;
+- hash de contraseña mediante bcrypt.
+
+Ejemplo:
 
 ```json
 {
-  "first_name": "Gaston",
-  "last_name": "Jaureguiberry",
-  "email": "gaston.passport@test.com",
-  "password": "Backend2026"
-}
-```
-
-## Response — 201 Created
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "6aa07a35ab49742f363e7c94",
     "first_name": "Gaston",
     "last_name": "Jaureguiberry",
-    "email": "gaston.passport@test.com",
-    "role": "user"
-  }
+    "email": "gaston@club.com",
+    "password": "12345678"
 }
 ```
 
-La contraseña nunca se incluye en la respuesta.
+El registro público **no permite seleccionar el rol**.
 
-## Email duplicado — 409 Conflict
+Aunque un cliente intente enviar:
 
 ```json
 {
-  "status": "error",
-  "message": "El email ya está registrado"
+    "role": "admin"
+}
+```
+
+el backend asigna siempre:
+
+```text
+role: user
+```
+
+Esto evita que un usuario pueda registrarse públicamente como `organizer` o `admin`.
+
+---
+
+# Roles
+
+El modelo `User` admite tres roles:
+
+```text
+user
+organizer
+admin
+```
+
+El rol por defecto es:
+
+```text
+user
+```
+
+Cada rol tiene diferentes permisos dentro de la plataforma.
+
+---
+
+# Matriz de permisos
+
+| Acción | user | organizer | admin |
+|---|:---:|:---:|:---:|
+| Consultar eventos publicados | ✅ | ✅ | ✅ |
+| Crear eventos | ❌ | ✅ | ✅ |
+| Modificar eventos propios | ❌ | ✅ | ✅ |
+| Modificar eventos ajenos | ❌ | ❌ | ✅ |
+| Ver todos los usuarios | ❌ | ❌ | ✅ |
+
+Esta matriz define las acciones permitidas para cada tipo de usuario.
+
+---
+
+# Middleware de autenticación
+
+La autenticación de rutas privadas se encuentra implementada en:
+
+```text
+src/middlewares/auth.middleware.js
+```
+
+El middleware `authenticate` utiliza la estrategia Passport `current`.
+
+Su responsabilidad es:
+
+1. obtener el JWT desde la cookie `currentUser`;
+2. validar el token;
+3. obtener el usuario correspondiente;
+4. guardar el usuario en `req.user`;
+5. permitir continuar la petición.
+
+Si no existe una sesión válida, responde:
+
+```text
+401 Unauthorized
+```
+
+Ejemplo:
+
+```json
+{
+    "status": "error",
+    "message": "No autenticado"
 }
 ```
 
 ---
 
-# Estrategia login
+# Middleware de autorización
 
-La estrategia:
+La autorización según roles se encuentra implementada en:
 
 ```text
-login
+src/middlewares/authorize.middleware.js
 ```
 
-se encarga de validar las credenciales del usuario.
+El middleware recibe los roles permitidos para una ruta.
 
-El flujo es:
+Ejemplo:
 
-1. recibe email y contraseña;
-2. normaliza el email;
-3. busca el usuario;
-4. compara la contraseña mediante bcrypt;
-5. si las credenciales son correctas, Passport deja el usuario disponible en `req.user`;
-6. el controller genera el JWT;
-7. el controller guarda el JWT en la cookie `currentUser`.
+```javascript
+authorize('organizer', 'admin')
+```
 
-Passport **no genera el JWT**.
+El middleware compara los roles permitidos contra:
 
-La generación del token permanece como responsabilidad del controller.
+```javascript
+req.user.role
+```
+
+Si el usuario está autenticado pero su rol no tiene permiso para realizar la acción, responde:
+
+```text
+403 Forbidden
+```
+
+Ejemplo:
+
+```json
+{
+    "status": "error",
+    "message": "No tenés permisos para realizar esta acción"
+}
+```
+
+---
+
+# Diferencia entre 401 y 403
+
+La API diferencia explícitamente entre errores de autenticación y autorización.
+
+## 401 Unauthorized
+
+Se utiliza cuando **no existe una sesión válida**.
+
+Puede ocurrir cuando:
+
+- no existe la cookie `currentUser`;
+- el JWT expiró;
+- el JWT es inválido;
+- el JWT fue manipulado;
+- el usuario asociado al token no existe.
+
+Ejemplo:
+
+```json
+{
+    "status": "error",
+    "message": "No autenticado"
+}
+```
+
+## 403 Forbidden
+
+Se utiliza cuando el usuario **sí está autenticado**, pero su rol no tiene permisos suficientes para realizar la acción.
+
+Ejemplo:
+
+```json
+{
+    "status": "error",
+    "message": "No tenés permisos para realizar esta acción"
+}
+```
+
+En resumen:
+
+```text
+401 → no está autenticado
+403 → está autenticado, pero no está autorizado
+```
+
+---
+
+# Rutas protegidas
+
+## Usuario actual
+
+```text
+GET /api/sessions/current
+```
+
+Requiere autenticación.
+
+```text
+Sin sesión → 401
+Con sesión → 200
+```
+
+---
+
+## Crear evento
+
+```text
+POST /api/events
+```
+
+Roles permitidos:
+
+```text
+organizer
+admin
+```
+
+Un usuario con rol `user` recibe:
+
+```text
+403 Forbidden
+```
+
+Ejemplo de request:
+
+```json
+{
+    "title": "Taller de cultivo",
+    "description": "Actividad educativa para socios del club",
+    "date": "2026-10-10T19:00:00.000Z",
+    "location": "Salón principal",
+    "capacity": 25
+}
+```
+
+El propietario del evento no se recibe desde el body.
+
+El backend utiliza:
+
+```javascript
+organizer: req.user._id
+```
+
+De esta forma, el evento queda asociado automáticamente al usuario autenticado que lo creó.
+
+---
+
+# Propiedad de eventos
+
+Cada evento almacena el usuario que lo creó mediante el campo:
+
+```text
+organizer
+```
+
+Este campo referencia al modelo de usuarios mediante un `ObjectId`.
+
+La modificación se realiza mediante:
+
+```text
+PATCH /api/events/:id
+```
+
+Los roles permitidos inicialmente son:
+
+```text
+organizer
+admin
+```
+
+Sin embargo, existe además una validación de propiedad del recurso.
+
+## Organizer
+
+Un `organizer` puede modificar únicamente los eventos que él mismo creó.
+
+El sistema compara:
+
+```javascript
+event.organizer
+```
+
+contra:
+
+```javascript
+req.user._id
+```
+
+Si intenta modificar un evento perteneciente a otro organizer:
+
+```text
+403 Forbidden
+```
+
+Ejemplo:
+
+```json
+{
+    "status": "error",
+    "message": "No tenés permisos para modificar este evento"
+}
+```
+
+## Admin
+
+Un usuario con rol `admin` puede modificar cualquier evento, independientemente de quién lo haya creado.
+
+---
+
+# Campos modificables de un evento
+
+Para evitar modificaciones no autorizadas, el endpoint de actualización solo permite modificar:
+
+```text
+title
+description
+date
+location
+capacity
+```
+
+El campo:
+
+```text
+organizer
+```
+
+no puede modificarse desde el body de la petición.
+
+Esto evita que un usuario pueda cambiar manualmente la propiedad de un evento.
+
+---
+
+# Ruta administrativa
+
+Se implementó una ruta exclusiva para administradores:
+
+```text
+GET /api/users
+```
+
+Esta ruta utiliza:
+
+```javascript
+authenticate
+authorize('admin')
+```
+
+Comportamiento:
+
+```text
+user      → 403
+organizer → 403
+admin     → 200
+sin sesión → 401
+```
+
+La respuesta no incluye las contraseñas de los usuarios.
+
+---
+
+# Login
 
 ## Endpoint
 
@@ -284,31 +577,37 @@ La generación del token permanece como responsabilidad del controller.
 POST /api/sessions/login
 ```
 
-## Request
+Ejemplo:
 
 ```json
 {
-  "email": "gaston.passport@test.com",
-  "password": "Backend2026"
+    "email": "gaston@club.com",
+    "password": "12345678"
 }
 ```
 
-## Response — 200 OK
+Passport valida las credenciales mediante la estrategia `login`.
+
+Si son correctas:
+
+1. Passport deja el usuario disponible en `req.user`;
+2. el controller genera el JWT;
+3. el JWT se almacena en la cookie `currentUser`.
+
+Respuesta:
+
+```text
+200 OK
+```
 
 ```json
 {
-  "status": "success",
-  "message": "Login correcto"
+    "status": "success",
+    "message": "Login correcto"
 }
 ```
 
----
-
-# Credenciales inválidas
-
-Por seguridad, el sistema no informa si falló el email o la contraseña.
-
-Ambos casos responden:
+Las credenciales inválidas responden:
 
 ```text
 401 Unauthorized
@@ -316,12 +615,10 @@ Ambos casos responden:
 
 ```json
 {
-  "status": "error",
-  "message": "Credenciales inválidas"
+    "status": "error",
+    "message": "Credenciales inválidas"
 }
 ```
-
-Esto evita revelar si un email se encuentra registrado en el sistema.
 
 ---
 
@@ -333,21 +630,11 @@ La lógica relacionada con JWT se encuentra en:
 src/utils/jwt.js
 ```
 
-Luego de que Passport valida correctamente las credenciales, el controller genera el JWT.
-
-El token contiene:
-
-```json
-{
-  "id": "id_del_usuario",
-  "email": "usuario@test.com",
-  "role": "user"
-}
-```
+El JWT representa la sesión del usuario.
 
 La contraseña nunca se incluye dentro del token.
 
-El JWT se firma utilizando:
+El token se firma utilizando:
 
 ```text
 JWT_SECRET
@@ -359,13 +646,11 @@ y su expiración se configura mediante:
 JWT_EXPIRES_IN
 ```
 
-Ambos valores se obtienen desde las variables de entorno.
-
 ---
 
 # Cookie de autenticación
 
-Luego de un login exitoso, el JWT se almacena en:
+Después de un login exitoso, el JWT se almacena en una cookie llamada:
 
 ```text
 currentUser
@@ -380,78 +665,11 @@ maxAge: 3600000
 secure: true solamente en producción
 ```
 
-La opción `httpOnly` evita que la cookie pueda ser accedida directamente desde JavaScript del navegador.
-
----
-
-# Estrategia current
-
-La estrategia:
-
-```text
-current
-```
-
-permite identificar al usuario que ya inició sesión.
-
-No utiliza nuevamente email y contraseña.
-
-En su lugar:
-
-1. obtiene el JWT desde la cookie `currentUser`;
-2. verifica el token utilizando `JWT_SECRET`;
-3. obtiene el `id` almacenado en el payload;
-4. busca al usuario en MongoDB;
-5. si el usuario existe, Passport lo deja disponible en `req.user`;
-6. el controller devuelve únicamente los datos necesarios.
-
-La búsqueda en MongoDB permite comprobar que el usuario asociado al JWT continúa existiendo en el sistema.
-
-## Endpoint
-
-```text
-GET /api/sessions/current
-```
-
-## Response — 200 OK
-
-```json
-{
-  "status": "success",
-  "payload": {
-    "id": "6aa07a35ab49742f363e7c94",
-    "email": "gaston.passport@test.com",
-    "role": "user"
-  }
-}
-```
-
-La contraseña no se devuelve.
-
----
-
-# Usuario no autenticado
-
-Si la cookie no existe, el JWT expiró o el token fue manipulado, la petición responde:
-
-```text
-401 Unauthorized
-```
-
-```json
-{
-  "status": "error",
-  "message": "No autenticado"
-}
-```
+La opción `httpOnly` evita que la cookie pueda ser accedida directamente mediante JavaScript del navegador.
 
 ---
 
 # Logout
-
-El logout no utiliza una estrategia de Passport.
-
-Su única responsabilidad es eliminar la cookie `currentUser`.
 
 ## Endpoint
 
@@ -459,22 +677,22 @@ Su única responsabilidad es eliminar la cookie `currentUser`.
 POST /api/sessions/logout
 ```
 
-## Response — 200 OK
+El logout elimina la cookie:
+
+```text
+currentUser
+```
+
+Respuesta:
 
 ```json
 {
-  "status": "success",
-  "message": "Sesión cerrada"
+    "status": "success",
+    "message": "Sesión cerrada"
 }
 ```
 
-Después del logout, un nuevo acceso a:
-
-```text
-GET /api/sessions/current
-```
-
-devuelve:
+Después del logout, intentar acceder a una ruta privada devuelve:
 
 ```text
 401 Unauthorized
@@ -482,44 +700,12 @@ devuelve:
 
 ---
 
-# Flujo de autenticación
+# Flujo de autenticación y autorización
 
 ```text
-REGISTER
+REQUEST
    ↓
-Passport "register"
-   ↓
-Validación + bcrypt
-   ↓
-Repository
-   ↓
-DAO
-   ↓
-MongoDB
-   ↓
-req.user
-   ↓
-201 Created
-
-
-LOGIN
-   ↓
-Passport "login"
-   ↓
-Validación de credenciales
-   ↓
-bcrypt.compare
-   ↓
-req.user
-   ↓
-Controller
-   ↓
-JWT
-   ↓
-Cookie currentUser
-
-
-GET /current
+authenticate
    ↓
 Passport "current"
    ↓
@@ -527,61 +713,160 @@ Cookie currentUser
    ↓
 Validación JWT
    ↓
-Repository
-   ↓
-DAO
-   ↓
-MongoDB
+Usuario en MongoDB
    ↓
 req.user
    ↓
-Usuario autenticado
-
-
-LOGOUT
-   ↓
-Cookie eliminada
-   ↓
-GET /current
-   ↓
-401 Unauthorized
+¿Existe usuario autenticado?
+   │
+   ├── NO → 401 Unauthorized
+   │
+   └── SÍ
+        ↓
+   authorize(...)
+        ↓
+   ¿El rol está permitido?
+        │
+        ├── NO → 403 Forbidden
+        │
+        └── SÍ
+             ↓
+         Controller
+             ↓
+         Acción permitida
 ```
 
 ---
 
 # Endpoints disponibles
 
-| Método | Endpoint | Descripción |
-|---|---|---|
-| GET | `/api/health` | Comprueba que el servidor esté activo |
-| GET | `/api/events` | Devuelve los eventos disponibles |
-| GET | `/api/sessions` | Comprueba el módulo de sessions |
-| POST | `/api/sessions/register` | Registra un usuario mediante Passport |
-| POST | `/api/sessions/login` | Valida credenciales mediante Passport y genera la sesión |
-| GET | `/api/sessions/current` | Obtiene el usuario autenticado mediante Passport JWT |
-| POST | `/api/sessions/logout` | Elimina la cookie de autenticación |
+| Método | Endpoint | Acceso | Descripción |
+|---|---|---|---|
+| GET | `/api/health` | Público | Comprueba que el servidor esté activo |
+| GET | `/api/events` | Público | Devuelve los eventos disponibles |
+| POST | `/api/events` | organizer / admin | Crea un evento |
+| PATCH | `/api/events/:id` | organizer / admin | Modifica un evento respetando propiedad |
+| GET | `/api/sessions` | Público | Comprueba el módulo de sesiones |
+| POST | `/api/sessions/register` | Público | Registra un usuario |
+| POST | `/api/sessions/login` | Público | Inicia sesión |
+| GET | `/api/sessions/current` | Autenticado | Obtiene el usuario actual |
+| POST | `/api/sessions/logout` | Público | Elimina la cookie de autenticación |
+| GET | `/api/users` | admin | Devuelve todos los usuarios |
 
 ---
 
 # Casos probados
 
-Antes de la entrega se verificaron los casos solicitados:
+Antes de la entrega se verificaron los casos principales de autenticación y autorización.
 
-1. Registro exitoso.
-2. Login exitoso.
-3. Creación de la cookie `currentUser`.
-4. Cookie configurada como HttpOnly.
-5. Acceso a `/current` con JWT válido devuelve `200`.
-6. Logout exitoso.
-7. Acceso a `/current` después del logout devuelve `401`.
-8. Registro con email duplicado devuelve `409`.
-9. Login con contraseña incorrecta devuelve `401`.
-10. Las credenciales inválidas utilizan un mensaje genérico.
-11. Acceso a `/current` sin cookie devuelve `401`.
-12. Acceso a `/current` con JWT manipulado devuelve `401`.
-13. Las respuestas de autenticación no incluyen la contraseña.
-14. El JWT no incluye la contraseña.
-15. El registro público asigna automáticamente el rol `user`.
+## 1. User intentando crear evento
+
+```text
+POST /api/events
+role: user
+```
+
+Resultado:
+
+```text
+403 Forbidden
+```
+
+---
+
+## 2. Organizer creando evento
+
+```text
+POST /api/events
+role: organizer
+```
+
+Resultado:
+
+```text
+201 Created
+```
+
+El evento queda asociado al organizer autenticado.
+
+---
+
+## 3. Organizer accediendo a ruta administrativa
+
+```text
+GET /api/users
+role: organizer
+```
+
+Resultado:
+
+```text
+403 Forbidden
+```
+
+---
+
+## 4. Admin accediendo a ruta administrativa
+
+```text
+GET /api/users
+role: admin
+```
+
+Resultado:
+
+```text
+200 OK
+```
+
+---
+
+## 5. Ruta privada sin cookie
+
+```text
+GET /api/sessions/current
+```
+
+sin cookie `currentUser`.
+
+Resultado:
+
+```text
+401 Unauthorized
+```
+
+---
+
+## 6. Organizer intentando modificar evento ajeno
+
+```text
+PATCH /api/events/:id
+role: organizer
+```
+
+sobre un evento creado por otro organizer.
+
+Resultado:
+
+```text
+403 Forbidden
+```
+
+---
+
+## Pruebas adicionales
+
+También se verificó:
+
+- organizer modificando su propio evento → `200 OK`;
+- admin modificando un evento creado por otro usuario → `200 OK`;
+- registro público asignando automáticamente `role: user`;
+- registro público sin posibilidad de crear `admin` u `organizer`;
+- login exitoso → `200 OK`;
+- credenciales inválidas → `401 Unauthorized`;
+- logout exitoso;
+- acceso a `/current` sin sesión → `401 Unauthorized`;
+- las respuestas administrativas no exponen contraseñas.
 
 ---
 
@@ -597,36 +882,18 @@ node_modules/
 Además:
 
 - las contraseñas se almacenan utilizando bcrypt;
-- el email se normaliza;
-- el rol del registro público se fuerza a `user`;
-- las contraseñas no se exponen en respuestas;
+- las contraseñas no se devuelven en las respuestas;
 - el JWT no contiene la contraseña;
 - `JWT_SECRET` se obtiene desde variables de entorno;
-- la autenticación utiliza una cookie HttpOnly;
-- el login no revela si el email o la contraseña fueron incorrectos;
-- la estrategia `current` verifica la validez del JWT;
-- un JWT manipulado o inválido es rechazado.
-
----
-
-# Preparación para proveedores externos
-
-La configuración de Passport se encuentra centralizada en:
-
-```text
-src/config/passport.config.js
-```
-
-`app.js` solamente inicializa Passport y no contiene la lógica específica de las estrategias.
-
-Esta organización permite incorporar en el futuro nuevas estrategias de autenticación mediante proveedores externos, por ejemplo:
-
-- GitHub;
-- Google.
-
-Para agregar un provider externo se puede incorporar una nueva estrategia dentro de la configuración de Passport sin trasladar la lógica de autenticación a `app.js`.
-
-Las credenciales necesarias para futuros providers deberán almacenarse mediante variables de entorno y nunca incluirse directamente en el código fuente.
+- el registro público fuerza el rol `user`;
+- los roles permitidos se validan mediante middleware;
+- la autenticación y autorización están separadas;
+- las rutas privadas responden `401` cuando no existe sesión;
+- las rutas sin permisos responden `403`;
+- los organizers no pueden modificar eventos ajenos;
+- el organizer de un evento no puede modificarse desde el body;
+- la ruta administrativa no devuelve passwords;
+- la autenticación utiliza una cookie HttpOnly.
 
 ---
 
@@ -634,8 +901,8 @@ Las credenciales necesarias para futuros providers deberán almacenarse mediante
 
 ```json
 {
-  "start": "node src/server.js",
-  "dev": "node --watch src/server.js"
+    "start": "node src/server.js",
+    "dev": "node --watch src/server.js"
 }
 ```
 
@@ -645,12 +912,11 @@ Las credenciales necesarias para futuros providers deberán almacenarse mediante
 
 El proyecto queda preparado para continuar incorporando:
 
-- autorización según roles;
-- protección de rutas sensibles;
-- permisos para `user`, `organizer` y `admin`;
-- gestión completa de eventos;
-- inscripciones;
+- inscripciones y reservas a eventos;
 - control de cupos;
+- cancelación de reservas;
+- administración de actividades del club;
+- validaciones adicionales;
 - proveedores externos de autenticación;
 - notificaciones.
 
@@ -660,4 +926,4 @@ El proyecto queda preparado para continuar incorporando:
 
 **Gastón Jaureguiberry**
 
-Proyecto desarrollado como **Pre-entrega 4 de Backend II en Coderhouse**.
+Proyecto desarrollado como **Pre-entrega 5 de Backend II en Coderhouse**.

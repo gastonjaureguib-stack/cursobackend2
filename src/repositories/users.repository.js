@@ -1,6 +1,12 @@
 import { usersDAO } from '../dao/users.dao.js';
 
 export class UsersRepository {
+
+    
+    async findAll() {
+        return await usersDAO.findAll();
+    }
+
     async findByEmail(email) {
         return await usersDAO.findByEmail(email);
     }
