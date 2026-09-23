@@ -7,10 +7,15 @@ export const authorize = (...allowedRoles) => {
             });
         }
 
-        if (!allowedRoles.includes(req.user.role)) {
+        if (
+            !allowedRoles.includes(
+                req.user.role
+            )
+        ) {
             return res.status(403).json({
                 status: 'error',
-                message: 'No tenés permisos para realizar esta acción'
+                message:
+                    'No tenés permisos para realizar esta acción'
             });
         }
 

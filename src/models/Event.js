@@ -1,5 +1,10 @@
 import mongoose from 'mongoose';
 
+import {
+    EVENT_STATUS,
+    EVENT_STATUS_VALUES
+} from '../constants/eventStatus.js';
+
 const eventSchema = new mongoose.Schema(
     {
         title: {
@@ -9,6 +14,12 @@ const eventSchema = new mongoose.Schema(
         },
 
         description: {
+            type: String,
+            required: true,
+            trim: true
+        },
+
+        category: {
             type: String,
             required: true,
             trim: true
@@ -29,6 +40,18 @@ const eventSchema = new mongoose.Schema(
             type: Number,
             required: true,
             min: 1
+        },
+
+        price: {
+            type: Number,
+            required: true,
+            min: 0
+        },
+
+        status: {
+            type: String,
+            enum: EVENT_STATUS_VALUES,
+            default: EVENT_STATUS.DRAFT
         },
 
         organizer: {

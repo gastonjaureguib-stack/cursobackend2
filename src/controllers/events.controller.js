@@ -1,55 +1,80 @@
-import { eventsRepository } from '../repositories/events.repository.js';
+import {
+    eventsService
+} from '../services/events.service.js';
 
-
-
-
-export const getEvents = async (req, res, next) => {
+export const getEvents = async (
+    req,
+    res,
+    next
+) => {
     try {
-        const events = await eventsRepository.findAll();
+        const result =
+            await eventsService.getEvents(
+                req.query
+            );
 
         return res.status(200).json({
             status: 'success',
-            payload: events
+            ...result
         });
     } catch (error) {
         next(error);
     }
 };
 
+export const getEventById = async (
+    req,
+    res,
+    next
+) => {
+    try {
+        const { id } = req.params;
 
+        const event =
+            await eventsService.getEventById(
+                id
+            );
 
+        return res.status(200).json({
+            status: 'success',
+            payload: event
+        });
+    } catch (error) {
+        next(error);
+    }
+};
 
-export const createEvent = async (req, res, next) => {
+export const createEvent = async (
+    req,
+    res,
+    next
+) => {
     try {
         const {
             title,
             description,
-            date,
-            location,
-            capacity
-        } = req.body;
-
-        if (
-            !title ||
-            !description ||
-            !date ||
-            !location ||
-            !capacity
-        ) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'Faltan campos obligatorios'
-            });
-        }
-
-        const newEvent = await eventsRepository.createEvent({
-            title,
-            description,
+            category,
             date,
             location,
             capacity,
+            price
+        } = req.body;
+
+        const eventData = {
+            title,
+            description,
+            category,
+            date,
+            location,
+            capacity,
+            price,
             organizer: req.user._id
-        });
+        };
+
+        const newEvent =
+            await eventsService.createEvent(
+                eventData
+            );
 
         return res.status(201).json({
             status: 'success',
@@ -60,55 +85,66 @@ export const createEvent = async (req, res, next) => {
     }
 };
 
-
-
-
-export const updateEvent = async (req, res, next) => {
+export const updateEvent = async (
+    req,
+    res,
+    next
+) => {
     try {
         const { id } = req.params;
 
-        const event = await eventsRepository.findById(id);
-
-        if (!event) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Evento no encontrado'
-            });
-        }
-
-        if (
-            req.user.role === 'organizer' &&
-            event.organizer.toString() !==
-                req.user._id.toString()
-        ) {
-            return res.status(403).json({
-                status: 'error',
-                message:
-                    'No tenés permisos para modificar este evento'
-            });
-        }
-
-      
         const allowedFields = [
             'title',
             'description',
+            'category',
             'date',
             'location',
-            'capacity'
+            'capacity',
+            'price'
         ];
 
         const updateData = {};
 
-        allowedFields.forEach((field) => {
-            if (req.body[field] !== undefined) {
-                updateData[field] = req.body[field];
+        allowedFields.forEach(
+            (field) => {
+                if (
+                    req.body[field] !==
+                    undefined
+                ) {
+                    updateData[field] =
+                        req.body[field];
+                }
             }
-        });
+        );
 
         const updatedEvent =
-            await eventsRepository.updateEvent(
+            await eventsService.updateEvent(
                 id,
                 updateData
+            );
+
+        return res.status(200).json({
+            status: 'success',
+            payload: updatedEvent
+        });
+    } catch (error) {
+        next(error);
+    }
+};
+
+export const updateEventStatus = async (
+    req,
+    res,
+    next
+) => {
+    try {
+        const { id } = req.params;
+        const { status } = req.body;
+
+        const updatedEvent =
+            await eventsService.updateEventStatus(
+                id,
+                status
             );
 
         return res.status(200).json({

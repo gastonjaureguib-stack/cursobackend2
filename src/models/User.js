@@ -1,5 +1,9 @@
 import mongoose from 'mongoose';
 
+import {
+    ROLES
+} from '../constants/roles.js';
+
 const userSchema = new mongoose.Schema(
     {
         first_name: {
@@ -29,8 +33,8 @@ const userSchema = new mongoose.Schema(
 
         role: {
             type: String,
-            enum: ['user', 'organizer', 'admin'],
-            default: 'user'
+            enum: Object.values(ROLES),
+            default: ROLES.USER
         }
     },
     {
@@ -38,4 +42,7 @@ const userSchema = new mongoose.Schema(
     }
 );
 
-export const UserModel = mongoose.model('users', userSchema);
+export const UserModel = mongoose.model(
+    'users',
+    userSchema
+);

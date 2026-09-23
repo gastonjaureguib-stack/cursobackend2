@@ -1,16 +1,22 @@
 import { eventsDAO } from '../dao/events.dao.js';
 
 export class EventsRepository {
-    async findAll() {
-        return await eventsDAO.findAll();
+    async findAll(options) {
+        return await eventsDAO.findAll(
+            options
+        );
     }
 
     async findById(id) {
-        return await eventsDAO.findById(id);
+        return await eventsDAO.findById(
+            id
+        );
     }
 
     async createEvent(eventData) {
-        return await eventsDAO.create(eventData);
+        return await eventsDAO.create(
+            eventData
+        );
     }
 
     async updateEvent(id, eventData) {
