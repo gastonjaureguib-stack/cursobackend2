@@ -11,6 +11,11 @@ import {
 } from '../controllers/events.controller.js';
 
 import {
+    createTicket,
+    getTicketsByEvent
+} from '../controllers/tickets.controller.js';
+
+import {
     authenticate
 } from '../middlewares/auth.middleware.js';
 
@@ -31,6 +36,23 @@ const router = Router();
 router.get(
     '/',
     getEvents
+);
+
+router.post(
+    '/:eid/tickets',
+    authenticate,
+    createTicket
+);
+
+router.get(
+    '/:eid/tickets',
+    authenticate,
+    authorize(
+        ROLES.ORGANIZER,
+        ROLES.ADMIN
+    ),
+    checkEventOwnership,
+    getTicketsByEvent
 );
 
 router.get(

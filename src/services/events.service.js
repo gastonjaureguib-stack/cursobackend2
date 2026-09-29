@@ -1,3 +1,5 @@
+import mongoose from 'mongoose';
+
 import {
     eventsRepository
 } from '../repositories/events.repository.js';
@@ -29,6 +31,7 @@ export class EventsService {
                 const error = new Error(
                     'Estado de evento inválido'
                 );
+
                 error.statusCode = 400;
                 throw error;
             }
@@ -58,6 +61,7 @@ export class EventsService {
                     const error = new Error(
                         'dateFrom inválido'
                     );
+
                     error.statusCode = 400;
                     throw error;
                 }
@@ -76,6 +80,7 @@ export class EventsService {
                     const error = new Error(
                         'dateTo inválido'
                     );
+
                     error.statusCode = 400;
                     throw error;
                 }
@@ -92,6 +97,7 @@ export class EventsService {
                 const error = new Error(
                     'dateFrom no puede ser posterior a dateTo'
                 );
+
                 error.statusCode = 400;
                 throw error;
             }
@@ -107,6 +113,7 @@ export class EventsService {
             const error = new Error(
                 'page debe ser un número entero mayor a 0'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -118,6 +125,7 @@ export class EventsService {
             const error = new Error(
                 'limit debe ser un número entero mayor a 0'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -140,6 +148,7 @@ export class EventsService {
             const error = new Error(
                 'Ordenamiento inválido'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -157,6 +166,7 @@ export class EventsService {
             const error = new Error(
                 'Campo de ordenamiento inválido'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -185,6 +195,19 @@ export class EventsService {
     }
 
     async getEventById(id) {
+        if (
+            !mongoose.Types.ObjectId.isValid(
+                id
+            )
+        ) {
+            const error = new Error(
+                'ID de evento inválido'
+            );
+
+            error.statusCode = 400;
+            throw error;
+        }
+
         const event =
             await eventsRepository.findById(
                 id
@@ -194,6 +217,7 @@ export class EventsService {
             const error = new Error(
                 'Evento no encontrado'
             );
+
             error.statusCode = 404;
             throw error;
         }
@@ -225,6 +249,7 @@ export class EventsService {
             const error = new Error(
                 'Faltan campos obligatorios'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -241,6 +266,7 @@ export class EventsService {
             const error = new Error(
                 'La fecha del evento debe ser futura'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -252,6 +278,7 @@ export class EventsService {
             const error = new Error(
                 'La capacidad debe ser mayor a 0'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -263,6 +290,7 @@ export class EventsService {
             const error = new Error(
                 'El precio no puede ser negativo'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -293,6 +321,7 @@ export class EventsService {
             const error = new Error(
                 'No se puede modificar un evento cancelado'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -304,6 +333,7 @@ export class EventsService {
             const error = new Error(
                 'El título es obligatorio'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -315,6 +345,7 @@ export class EventsService {
             const error = new Error(
                 'La descripción es obligatoria'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -326,6 +357,7 @@ export class EventsService {
             const error = new Error(
                 'La categoría es obligatoria'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -337,6 +369,7 @@ export class EventsService {
             const error = new Error(
                 'La ubicación es obligatoria'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -358,6 +391,7 @@ export class EventsService {
                 const error = new Error(
                     'La fecha del evento debe ser futura'
                 );
+
                 error.statusCode = 400;
                 throw error;
             }
@@ -377,6 +411,7 @@ export class EventsService {
             const error = new Error(
                 'La capacidad debe ser mayor a 0'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -392,6 +427,7 @@ export class EventsService {
             const error = new Error(
                 'El precio no puede ser negativo'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -414,6 +450,7 @@ export class EventsService {
             const error = new Error(
                 'Estado de evento inválido'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -428,6 +465,7 @@ export class EventsService {
             const error = new Error(
                 'No se puede cambiar el estado de un evento cancelado'
             );
+
             error.statusCode = 400;
             throw error;
         }
@@ -444,6 +482,7 @@ export class EventsService {
                 const error = new Error(
                     'No se puede publicar un evento finalizado'
                 );
+
                 error.statusCode = 400;
                 throw error;
             }
