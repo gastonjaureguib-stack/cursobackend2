@@ -2,6 +2,11 @@ import {
     eventsService
 } from '../services/events.service.js';
 
+import {
+    EventDTO
+} from '../dto/event.dto.js';
+
+
 export const getEvents = async (
     req,
     res,
@@ -13,14 +18,22 @@ export const getEvents = async (
                 req.query
             );
 
+        const eventsDTO =
+            result.data.map(
+                (event) =>
+                    new EventDTO(event)
+            );
+
         return res.status(200).json({
             status: 'success',
-            ...result
+            ...result,
+            data: eventsDTO
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 export const getEventById = async (
     req,
@@ -37,12 +50,13 @@ export const getEventById = async (
 
         return res.status(200).json({
             status: 'success',
-            payload: event
+            payload: new EventDTO(event)
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 export const createEvent = async (
     req,
@@ -78,12 +92,15 @@ export const createEvent = async (
 
         return res.status(201).json({
             status: 'success',
-            payload: newEvent
+            payload: new EventDTO(
+                newEvent
+            )
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 export const updateEvent = async (
     req,
@@ -125,12 +142,15 @@ export const updateEvent = async (
 
         return res.status(200).json({
             status: 'success',
-            payload: updatedEvent
+            payload: new EventDTO(
+                updatedEvent
+            )
         });
     } catch (error) {
         next(error);
     }
 };
+
 
 export const updateEventStatus = async (
     req,
@@ -149,7 +169,9 @@ export const updateEventStatus = async (
 
         return res.status(200).json({
             status: 'success',
-            payload: updatedEvent
+            payload: new EventDTO(
+                updatedEvent
+            )
         });
     } catch (error) {
         next(error);

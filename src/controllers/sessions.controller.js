@@ -1,4 +1,6 @@
 import { generateToken } from '../utils/jwt.js';
+import { UserDTO } from '../dto/user.dto.js';
+
 
 export const getSessionStatus = (req, res) => {
     res.status(200).json({
@@ -7,18 +9,16 @@ export const getSessionStatus = (req, res) => {
     });
 };
 
+
 export const register = (req, res) => {
+    const userDTO = new UserDTO(req.user);
+
     return res.status(201).json({
         status: 'success',
-        payload: {
-            id: req.user._id,
-            first_name: req.user.first_name,
-            last_name: req.user.last_name,
-            email: req.user.email,
-            role: req.user.role
-        }
+        payload: userDTO
     });
 };
+
 
 export const login = (req, res) => {
     const token = generateToken(req.user);
@@ -42,16 +42,16 @@ export const login = (req, res) => {
     });
 };
 
+
 export const current = (req, res) => {
+    const userDTO = new UserDTO(req.user);
+
     return res.status(200).json({
         status: 'success',
-        payload: {
-            id: req.user._id,
-            email: req.user.email,
-            role: req.user.role
-        }
+        payload: userDTO
     });
 };
+
 
 export const logout = (req, res) => {
     res.clearCookie(

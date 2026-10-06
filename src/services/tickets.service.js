@@ -25,7 +25,9 @@ import {
     ROLES
 } from '../constants/roles.js';
 
+
 export class TicketsService {
+
     async createTicket(
         user,
         eventId,
@@ -33,7 +35,7 @@ export class TicketsService {
     ) {
         const userId = user._id;
 
-        // Validar quantity
+        // Validar cantidad
         if (
             typeof quantity !== 'number' ||
             !Number.isInteger(quantity) ||
@@ -47,11 +49,13 @@ export class TicketsService {
             throw error;
         }
 
-        // Buscar y validar existencia del evento
+
+        // Buscar y validar evento
         const event =
             await eventsService.getEventById(
                 eventId
             );
+
 
         // El evento debe estar publicado
         if (
@@ -66,7 +70,8 @@ export class TicketsService {
             throw error;
         }
 
-        // El evento no puede haber finalizado por fecha
+
+        // El evento debe ser futuro
         if (event.date <= new Date()) {
             const error = new Error(
                 'El evento ya finalizó'
@@ -75,6 +80,7 @@ export class TicketsService {
             error.statusCode = 400;
             throw error;
         }
+
 
         // Evitar inscripción activa duplicada
         const existingTicket =
@@ -89,9 +95,10 @@ export class TicketsService {
                 'Ya tenés una inscripción activa para este evento'
             );
 
-            error.statusCode = 400;
+            error.statusCode = 409;
             throw error;
         }
+
 
         // Calcular cupos ocupados
         const occupiedCapacity =
@@ -104,19 +111,25 @@ export class TicketsService {
             event.capacity -
             occupiedCapacity;
 
-        // Comprobar disponibilidad
-        if (availableCapacity < quantity) {
+
+        // Validar disponibilidad
+        if (
+            availableCapacity <
+            quantity
+        ) {
             const error = new Error(
                 `No hay cupos suficientes. Cupos disponibles: ${availableCapacity}`
             );
 
-            error.statusCode = 400;
+            error.statusCode = 409;
             throw error;
         }
 
-        // Generar código único de reserva
+
+        // Generar código de reserva
         const reservationCode =
             crypto.randomUUID();
+
 
         // Crear inscripción
         const ticket =
@@ -130,32 +143,40 @@ export class TicketsService {
                     reservationCode
                 });
 
+
         // Enviar email de confirmación
-        await mailService.sendTicketConfirmation(
-            user,
-            event,
-            ticket
-        );
+        await mailService
+            .sendTicketConfirmation(
+                user,
+                event,
+                ticket
+            );
+
 
         return ticket;
     }
 
+
     async getMyTickets(userId) {
-        return await ticketsRepository.findByUser(
-            userId
-        );
+        return await ticketsRepository
+            .findByUser(
+                userId
+            );
     }
+
 
     async getTicketsByEvent(eventId) {
         const event =
-            await eventsService.getEventById(
-                eventId
-            );
+            await eventsService
+                .getEventById(
+                    eventId
+                );
 
         const tickets =
-            await ticketsRepository.findByEvent(
-                eventId
-            );
+            await ticketsRepository
+                .findByEvent(
+                    eventId
+                );
 
         return {
             event,
@@ -163,12 +184,16 @@ export class TicketsService {
         };
     }
 
+
     async cancelTicket(
         ticketId,
-        userId,
-        userRole
+        user
     ) {
-        // Validar formato del ObjectId
+        const userId = user._id;
+        const userRole = user.role;
+
+
+        // Validar ObjectId
         if (
             !mongoose.Types.ObjectId.isValid(
                 ticketId
@@ -182,11 +207,13 @@ export class TicketsService {
             throw error;
         }
 
+
         // Buscar ticket
         const ticket =
-            await ticketsRepository.findById(
-                ticketId
-            );
+            await ticketsRepository
+                .findById(
+                    ticketId
+                );
 
         if (!ticket) {
             const error = new Error(
@@ -197,7 +224,8 @@ export class TicketsService {
             throw error;
         }
 
-        // Solo el dueño o un admin pueden cancelarlo
+
+        // Solo dueño o admin
         if (
             userRole !== ROLES.ADMIN &&
             ticket.user.toString() !==
@@ -211,7 +239,8 @@ export class TicketsService {
             throw error;
         }
 
-        // No se puede cancelar dos veces
+
+        // No cancelar dos veces
         if (
             ticket.status ===
             TICKET_STATUS.CANCELLED
@@ -220,21 +249,46 @@ export class TicketsService {
                 'El ticket ya está cancelado'
             );
 
-            error.statusCode = 400;
+            error.statusCode = 409;
             throw error;
         }
 
-        // Cancelación lógica: no eliminamos el ticket
-        return await ticketsRepository.updateTicket(
-            ticketId,
-            {
-                status:
-                    TICKET_STATUS.CANCELLED,
-                cancelledAt: new Date()
-            }
-        );
+
+        // Buscar evento para el email
+        const event =
+            await eventsService
+                .getEventById(
+                    ticket.event.toString()
+                );
+
+
+        // Cancelación lógica
+        const cancelledTicket =
+            await ticketsRepository
+                .updateTicket(
+                    ticketId,
+                    {
+                        status:
+                            TICKET_STATUS.CANCELLED,
+                        cancelledAt:
+                            new Date()
+                    }
+                );
+
+
+        // Enviar email de cancelación
+        await mailService
+            .sendTicketCancellation(
+                user,
+                event,
+                cancelledTicket
+            );
+
+
+        return cancelledTicket;
     }
 }
+
 
 export const ticketsService =
     new TicketsService();

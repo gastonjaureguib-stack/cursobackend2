@@ -4,8 +4,6 @@ export const errorHandler = (
     res,
     next
 ) => {
-    console.error(error);
-
     const statusCode =
         error.statusCode || 500;
 
