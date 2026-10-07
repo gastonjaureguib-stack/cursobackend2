@@ -1,12 +1,11 @@
-import mongoose from 'mongoose';
-
 import {
-    eventsRepository
-} from '../repositories/events.repository.js';
+    eventsService
+} from '../services/events.service.js';
 
 import {
     ROLES
 } from '../constants/roles.js';
+
 
 export const checkEventOwnership = async (
     req,
@@ -18,36 +17,26 @@ export const checkEventOwnership = async (
             req.params.id ||
             req.params.eid;
 
-        if (
-            !mongoose.Types.ObjectId.isValid(
-                eventId
-            )
-        ) {
-            return res.status(400).json({
-                status: 'error',
-                message: 'ID de evento inválido'
-            });
-        }
 
         const event =
-            await eventsRepository.findById(
+            await eventsService.getEventById(
                 eventId
             );
 
-        if (!event) {
-            return res.status(404).json({
-                status: 'error',
-                message: 'Evento no encontrado'
-            });
-        }
 
+        // El administrador puede acceder
+        // a cualquier evento
         if (
-            req.user.role === ROLES.ADMIN
+            req.user.role ===
+            ROLES.ADMIN
         ) {
             req.event = event;
             return next();
         }
 
+
+        // El organizer solamente puede
+        // acceder a sus propios eventos
         if (
             req.user.role ===
                 ROLES.ORGANIZER &&
@@ -58,11 +47,15 @@ export const checkEventOwnership = async (
             return next();
         }
 
-        return res.status(403).json({
-            status: 'error',
-            message:
-                'No tenés permisos para acceder a este evento'
-        });
+
+        const error = new Error(
+            'No tenés permisos para acceder a este evento'
+        );
+
+        error.statusCode = 403;
+
+        return next(error);
+
     } catch (error) {
         next(error);
     }

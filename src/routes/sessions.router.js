@@ -9,12 +9,18 @@ import {
     logout
 } from '../controllers/sessions.controller.js';
 
-import { authenticate } from '../middlewares/auth.middleware.js';
+import {
+    authenticate
+} from '../middlewares/auth.middleware.js';
+
 
 const router = Router();
 
-router.get('/', getSessionStatus);
 
+router.get(
+    '/',
+    getSessionStatus
+);
 
 
 router.post(
@@ -24,37 +30,37 @@ router.post(
             'register',
             { session: false },
             (error, user, info) => {
+
                 if (error) {
                     return next(error);
                 }
 
+
                 if (!user) {
-                    const message =
-                        info?.message ||
-                        'No se pudo registrar el usuario';
-
-                    const statusCode =
-                        message === 'El email ya está registrado'
-                            ? 409
-                            : 400;
-
                     return res
-                        .status(statusCode)
+                        .status(
+                            info?.statusCode || 400
+                        )
                         .json({
                             status: 'error',
-                            message
+                            message:
+                                info?.message ||
+                                'No se pudo registrar el usuario'
                         });
                 }
 
+
                 req.user = user;
 
-                return register(req, res);
+                return register(
+                    req,
+                    res,
+                    next
+                );
             }
         )(req, res, next);
     }
 );
-
-
 
 
 router.post(
@@ -63,29 +69,38 @@ router.post(
         passport.authenticate(
             'login',
             { session: false },
-            (error, user) => {
+            (error, user, info) => {
+
                 if (error) {
                     return next(error);
                 }
 
+
                 if (!user) {
                     return res
-                        .status(401)
+                        .status(
+                            info?.statusCode || 401
+                        )
                         .json({
                             status: 'error',
-                            message: 'Credenciales inválidas'
+                            message:
+                                info?.message ||
+                                'Credenciales inválidas'
                         });
                 }
 
+
                 req.user = user;
 
-                return login(req, res);
+                return login(
+                    req,
+                    res,
+                    next
+                );
             }
         )(req, res, next);
     }
 );
-
-
 
 
 router.get(
@@ -95,8 +110,10 @@ router.get(
 );
 
 
+router.post(
+    '/logout',
+    logout
+);
 
-
-router.post('/logout', logout);
 
 export default router;

@@ -1,27 +1,28 @@
 import passport from 'passport';
-import { Strategy as LocalStrategy } from 'passport-local';
-import { Strategy as JwtStrategy } from 'passport-jwt';
 
-import { usersRepository } from '../repositories/users.repository.js';
 import {
-    createHash,
-    isValidPassword
-} from '../utils/hash.js';
+    Strategy as LocalStrategy
+} from 'passport-local';
 
+import {
+    Strategy as JwtStrategy
+} from 'passport-jwt';
 
-// Extraer JWT desde la cookie
+import {
+    usersService
+} from '../services/users.service.js';
+
 
 const cookieExtractor = (req) => {
     let token = null;
 
     if (req && req.cookies) {
-        token = req.cookies.currentUser;
+        token =
+            req.cookies.currentUser;
     }
 
     return token;
 };
-
-
 
 
 passport.use(
@@ -31,78 +32,51 @@ passport.use(
             usernameField: 'email',
             passReqToCallback: true
         },
-        async (req, email, password, done) => {
+        async (
+            req,
+            email,
+            password,
+            done
+        ) => {
             try {
-                const {
-                    first_name,
-                    last_name
-                } = req.body;
+                const user =
+                    await usersService
+                        .registerUser({
+                            first_name:
+                                req.body.first_name,
+                            last_name:
+                                req.body.last_name,
+                            email,
+                            password
+                        });
 
-                if (
-                    !first_name?.trim() ||
-                    !last_name?.trim() ||
-                    !email?.trim() ||
-                    !password
-                ) {
-                    return done(null, false, {
-                        message:
-                            'Faltan campos obligatorios'
-                    });
-                }
 
-                const emailRegex =
-                    /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+                return done(
+                    null,
+                    user
+                );
 
-                if (!emailRegex.test(email.trim())) {
-                    return done(null, false, {
-                        message:
-                            'Formato de email inválido'
-                    });
-                }
-
-                if (password.length < 8) {
-                    return done(null, false, {
-                        message:
-                            'La contraseña debe tener al menos 8 caracteres'
-                    });
-                }
-
-                const normalizedEmail =
-                    email.trim().toLowerCase();
-
-                const existingUser =
-                    await usersRepository.findByEmail(
-                        normalizedEmail
-                    );
-
-                if (existingUser) {
-                    return done(null, false, {
-                        message:
-                            'El email ya está registrado'
-                    });
-                }
-
-                const hashedPassword =
-                    await createHash(password);
-
-                const newUser =
-                    await usersRepository.createUser({
-                        first_name: first_name.trim(),
-                        last_name: last_name.trim(),
-                        email: normalizedEmail,
-                        password: hashedPassword,
-                        role: 'user'
-                    });
-
-                return done(null, newUser);
             } catch (error) {
+
+                if (error.statusCode) {
+                    return done(
+                        null,
+                        false,
+                        {
+                            message:
+                                error.message,
+                            statusCode:
+                                error.statusCode
+                        }
+                    );
+                }
+
+
                 return done(error);
             }
         }
     )
 );
-
-
 
 
 passport.use(
@@ -111,38 +85,41 @@ passport.use(
         {
             usernameField: 'email'
         },
-        async (email, password, done) => {
+        async (
+            email,
+            password,
+            done
+        ) => {
             try {
-                const normalizedEmail =
-                    email.trim().toLowerCase();
-
                 const user =
-                    await usersRepository.findByEmail(
-                        normalizedEmail
-                    );
+                    await usersService
+                        .loginUser(
+                            email,
+                            password
+                        );
 
-                if (!user) {
-                    return done(null, false, {
-                        message:
-                            'Credenciales inválidas'
-                    });
-                }
 
-                const validPassword =
-                    await isValidPassword(
-                        password,
-                        user.password
-                    );
+                return done(
+                    null,
+                    user
+                );
 
-                if (!validPassword) {
-                    return done(null, false, {
-                        message:
-                            'Credenciales inválidas'
-                    });
-                }
-
-                return done(null, user);
             } catch (error) {
+
+                if (error.statusCode) {
+                    return done(
+                        null,
+                        false,
+                        {
+                            message:
+                                error.message,
+                            statusCode:
+                                error.statusCode
+                        }
+                    );
+                }
+
+
                 return done(error);
             }
         }
@@ -150,29 +127,45 @@ passport.use(
 );
 
 
-
-
 passport.use(
     'current',
     new JwtStrategy(
         {
-            jwtFromRequest: cookieExtractor,
-            secretOrKey: process.env.JWT_SECRET
+            jwtFromRequest:
+                cookieExtractor,
+
+            secretOrKey:
+                process.env.JWT_SECRET
         },
-        async (jwtPayload, done) => {
+        async (
+            jwtPayload,
+            done
+        ) => {
             try {
                 const user =
-                    await usersRepository.findById(
-                        jwtPayload.id
-                    );
+                    await usersService
+                        .getUserById(
+                            jwtPayload.id
+                        );
+
 
                 if (!user) {
-                    return done(null, false, {
-                        message: 'No autenticado'
-                    });
+                    return done(
+                        null,
+                        false,
+                        {
+                            message:
+                                'No autenticado'
+                        }
+                    );
                 }
 
-                return done(null, user);
+
+                return done(
+                    null,
+                    user
+                );
+
             } catch (error) {
                 return done(error);
             }

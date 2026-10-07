@@ -29,6 +29,7 @@ export const getEvents = async (
             ...result,
             data: eventsDTO
         });
+
     } catch (error) {
         next(error);
     }
@@ -41,17 +42,16 @@ export const getEventById = async (
     next
 ) => {
     try {
-        const { id } = req.params;
-
         const event =
             await eventsService.getEventById(
-                id
+                req.params.id
             );
 
         return res.status(200).json({
             status: 'success',
             payload: new EventDTO(event)
         });
+
     } catch (error) {
         next(error);
     }
@@ -64,31 +64,11 @@ export const createEvent = async (
     next
 ) => {
     try {
-        const {
-            title,
-            description,
-            category,
-            date,
-            location,
-            capacity,
-            price
-        } = req.body;
-
-        const eventData = {
-            title,
-            description,
-            category,
-            date,
-            location,
-            capacity,
-            price,
-            organizer: req.user._id
-        };
-
         const newEvent =
-            await eventsService.createEvent(
-                eventData
-            );
+            await eventsService.createEvent({
+                ...req.body,
+                organizer: req.user._id
+            });
 
         return res.status(201).json({
             status: 'success',
@@ -96,6 +76,7 @@ export const createEvent = async (
                 newEvent
             )
         });
+
     } catch (error) {
         next(error);
     }
@@ -108,36 +89,10 @@ export const updateEvent = async (
     next
 ) => {
     try {
-        const { id } = req.params;
-
-        const allowedFields = [
-            'title',
-            'description',
-            'category',
-            'date',
-            'location',
-            'capacity',
-            'price'
-        ];
-
-        const updateData = {};
-
-        allowedFields.forEach(
-            (field) => {
-                if (
-                    req.body[field] !==
-                    undefined
-                ) {
-                    updateData[field] =
-                        req.body[field];
-                }
-            }
-        );
-
         const updatedEvent =
             await eventsService.updateEvent(
-                id,
-                updateData
+                req.params.id,
+                req.body
             );
 
         return res.status(200).json({
@@ -146,6 +101,7 @@ export const updateEvent = async (
                 updatedEvent
             )
         });
+
     } catch (error) {
         next(error);
     }
@@ -158,13 +114,10 @@ export const updateEventStatus = async (
     next
 ) => {
     try {
-        const { id } = req.params;
-        const { status } = req.body;
-
         const updatedEvent =
             await eventsService.updateEventStatus(
-                id,
-                status
+                req.params.id,
+                req.body.status
             );
 
         return res.status(200).json({
@@ -173,6 +126,7 @@ export const updateEventStatus = async (
                 updatedEvent
             )
         });
+
     } catch (error) {
         next(error);
     }

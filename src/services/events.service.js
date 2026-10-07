@@ -307,24 +307,54 @@ export class EventsService {
         });
     }
 
-    async updateEvent(
-        id,
-        eventData
+   async updateEvent(
+    id,
+    eventData
+) {
+    const event =
+        await this.getEventById(id);
+
+
+    if (
+        event.status ===
+        EVENT_STATUS.CANCELLED
     ) {
-        const event =
-            await this.getEventById(id);
+        const error = new Error(
+            'No se puede modificar un evento cancelado'
+        );
 
-        if (
-            event.status ===
-            EVENT_STATUS.CANCELLED
-        ) {
-            const error = new Error(
-                'No se puede modificar un evento cancelado'
-            );
+        error.statusCode = 400;
+        throw error;
+    }
 
-            error.statusCode = 400;
-            throw error;
+
+    const allowedFields = [
+        'title',
+        'description',
+        'category',
+        'date',
+        'location',
+        'capacity',
+        'price'
+    ];
+
+
+    const sanitizedData = {};
+
+    allowedFields.forEach(
+        (field) => {
+            if (
+                eventData[field] !==
+                undefined
+            ) {
+                sanitizedData[field] =
+                    eventData[field];
+            }
         }
+    );
+
+
+    eventData = sanitizedData;
 
         if (
             eventData.title !== undefined &&

@@ -10,6 +10,10 @@ import {
 } from './events.service.js';
 
 import {
+    usersService
+} from './users.service.js';
+
+import {
     mailService
 } from './mail.service.js';
 
@@ -34,6 +38,7 @@ export class TicketsService {
         quantity
     ) {
         const userId = user._id;
+
 
         // Validar cantidad
         if (
@@ -72,7 +77,9 @@ export class TicketsService {
 
 
         // El evento debe ser futuro
-        if (event.date <= new Date()) {
+        if (
+            event.date <= new Date()
+        ) {
             const error = new Error(
                 'El evento ya finalizó'
             );
@@ -90,6 +97,7 @@ export class TicketsService {
                     eventId
                 );
 
+
         if (existingTicket) {
             const error = new Error(
                 'Ya tenés una inscripción activa para este evento'
@@ -106,6 +114,7 @@ export class TicketsService {
                 .getOccupiedCapacity(
                     eventId
                 );
+
 
         const availableCapacity =
             event.capacity -
@@ -172,11 +181,13 @@ export class TicketsService {
                     eventId
                 );
 
+
         const tickets =
             await ticketsRepository
                 .findByEvent(
                     eventId
                 );
+
 
         return {
             event,
@@ -193,7 +204,7 @@ export class TicketsService {
         const userRole = user.role;
 
 
-        // Validar ObjectId
+        // Validar ObjectId del ticket
         if (
             !mongoose.Types.ObjectId.isValid(
                 ticketId
@@ -215,6 +226,7 @@ export class TicketsService {
                     ticketId
                 );
 
+
         if (!ticket) {
             const error = new Error(
                 'Ticket no encontrado'
@@ -225,7 +237,7 @@ export class TicketsService {
         }
 
 
-        // Solo dueño o admin
+        // Solo el dueño del ticket o un admin
         if (
             userRole !== ROLES.ADMIN &&
             ticket.user.toString() !==
@@ -240,7 +252,7 @@ export class TicketsService {
         }
 
 
-        // No cancelar dos veces
+        // No permitir cancelar dos veces
         if (
             ticket.status ===
             TICKET_STATUS.CANCELLED
@@ -254,12 +266,30 @@ export class TicketsService {
         }
 
 
-        // Buscar evento para el email
+        // Buscar evento
         const event =
             await eventsService
                 .getEventById(
                     ticket.event.toString()
                 );
+
+
+        // Buscar al verdadero dueño del ticket.
+        // Es importante si quien cancela es un admin.
+        const ticketOwner =
+            await usersService.getUserById(
+                ticket.user.toString()
+            );
+
+
+        if (!ticketOwner) {
+            const error = new Error(
+                'Usuario asociado al ticket no encontrado'
+            );
+
+            error.statusCode = 404;
+            throw error;
+        }
 
 
         // Cancelación lógica
@@ -276,10 +306,11 @@ export class TicketsService {
                 );
 
 
-        // Enviar email de cancelación
+        // El email siempre se envía
+        // al dueño de la inscripción
         await mailService
             .sendTicketCancellation(
-                user,
+                ticketOwner,
                 event,
                 cancelledTicket
             );
